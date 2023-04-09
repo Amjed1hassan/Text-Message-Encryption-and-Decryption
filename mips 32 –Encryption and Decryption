@@ -1,0 +1,518 @@
+# this is first project for   ENCS4370, COMPUTER ARCHITECTURE	, BieZeit
+#its read a file text and shift the char based on Caesar cipher algorithm , shift value by longest word in text
+# student name : Amjad bani odeh 119013 
+
+.data
+opprompt:     .asciiz "\nChoose the operation? (e for encryption and d for decryption)>"
+opprompt1:     .asciiz "\nChoose the operation? \n(s for replace the non char to space EX : ab-c ---> ab c \n and d for delet with shift the non char EX : ab-c ----> abc \n)>"
+buffer: .space 100 #buffer of 100
+buffer0: .space 1024 #buffer of 1024
+buffer1: .space 100 #buffer of 100
+buffer3: .space 100 #buffer of 100
+NON_alphabet:	.space	1024
+maxlength: .word 0
+loc_infile_txt: .asciiz "\n plez enter file location of plain text \n NOTE path should includ *\\* double  \n" 
+loc_outfile_txt: .asciiz "\n plez enter file location of cipher text \n NOTE path should includ *\\* double  \n"   
+spacechar: .asciiz "\n"
+readErrorMsg: .asciiz "\nError in reading file\n"
+openErrorMsg: .asciiz "\nError in opening file\n"
+error_msg: .asciiz "\nError: Invalid character entered"
+removErrorMsg: .asciiz "\nremove error"
+print_max_length: .asciiz "\n shift value :   "
+count: .asciiz "\n press 1 to coun other will end "
+
+.text 
+
+# here's Main function its ask user to enter E to encrypy the text and D to decrypt and , if its not E or D will print error and ask agin 
+
+main:
+
+loop_to_print_valid_char:
+	li $v0, 4
+  	la $a0, opprompt
+  syscall
+
+# Read a character from the user
+	li $v0, 12 # code for reading a character
+  syscall
+
+# Check if the character is one of the specific characters
+  	beq $v0, 'E', Encryption   # Branch to Encryption if $v0 is equal to 'E'
+  	beq $v0, 'e', Encryption   # Branch to Encryption if $v0 is equal to 'e'
+ 	beq $v0, 'D', Decryption   # Branch to Decryption if $v0 is equal to 'D'
+ 	beq $v0, 'd', Decryption   # Branch to Decryption if $v0 is equal to 'd'
+
+# Print an error message if the character is not one of the specific characters
+  	li  $v0, 4          # Service code 4 for printing a string
+  	la  $a0, error_msg  # Load address of error message string
+  syscall             # Print the error message
+
+# Go back to the beginning of the loop
+j loop_to_print_valid_char
+
+# here is Encryption function , its read the file user was entered and remove non alphabet characters , convert all char to lower case 
+# and find shift value 
+Encryption:
+#call read input file a
+jal read_input_file
+#call remove function to remove alphabet characters and find shift value
+jal remove
+
+
+# here is convert char function 		
+convert_TO_lowercase:	
+                 li $v0, 4
+                 li $t0, 0
+# here is loop to check if char is upper case convert it to lower by add 32 
+      loop:
+                 lb $t1, NON_alphabet($t0)       
+                 beq $t1, 0, start_Encrypt           # go to exit if $t1=0
+                 blt $t1, 'A', case     # go to case if $t1>a 
+                 bgt $t1, 'Z', case     # go to case if $t1<z
+                 add $t1, $t1, 32           # subtract 32 and save in $t1
+                 sb $t1, NON_alphabet($t0)
+
+      case: 
+                 addi $t0, $t0, 1
+                 j loop                 # go to loop
+
+
+start_Encrypt:
+ 		la $t0,NON_alphabet 		
+ 		li $t1,0 		# string length
+
+		lw $t5, maxlength
+		move $t3, $t5
+ 
+p:
+ 		lb $t4, 0($t0)  	 	# The first character is read
+ 		#beq $t4,10,openfile_to_write 	 	# Terminate program on the \n 
+ 		beqz $t4,openfile_to_write  			# Terminate Program when the end of the string is reached
+jal ischar 
+  			# Check if the character is lower case
+Encrypt:
+		beq $v0,1,Encryptchar  	# Encrypt characters
+		move $a0, $t4   		# if not character 
+#here is concatenate function  to concatenate all char after encrypt in one var 
+concatenate:
+		sb $a0, NON_alphabet($t1)
+ 		add $t0,$t0,1 			# Points to the next character
+ 		add $t1,$t1,1 			# length is incremented
+ j p
+ 
+ischar:
+ 		bgt $t4,122,Notchar	 	# if the character is not lower case or upper case
+ 		blt $t4,97,Notchar 		# if the character is not lower case 
+ 		li $v0,1   				# store value 1 in register V0 if the character is a lower case character
+ 		jr $ra    	
+ 			# return back to the return address
+Notchar:
+ 		li $v0,2   				# store value 2 in register VO if the character is not lower or upper
+ j Encrypt  
+  				# jump back
+
+ # we encrypt char by : ((ascii char - 97 )+ shift value )% 26 + 97
+Encryptchar:
+ 		li $t5,26   				
+ 		sub $t4,$t4,97
+ 		add $t4, $t4, $t3
+ 		div $t4,$t5
+ 		mfhi $a0
+ 		addi $a0,$a0,97
+ j concatenate 
+
+
+# here is Decryption function to decrypt char 
+Decryption:
+
+jal read_input_file
+
+  
+
+
+jal remove
+
+
+ 		la $t0, NON_alphabet 		# Entered string is stored in the t0 register
+ 		li $t1,0	 	# string length
+
+		lw $t5, maxlength
+		move $t3, $t5
+
+Decrypt:
+ 		lb $t4, 0($t0)  	# First character is read
+ 		beqz $t4,openfile_to_write   	# Terminate program when the end of the string is reached 
+ 	
+ jal Decryptislower  	# Check for lower case characters
+
+Decrypt2:
+ 		beq $v0,1,DecryptLower 	# Decrypt lower case characters
+ 		beq $v0,0,DecryptUpper 	# Decrypt Upper case characters
+ 		move $a0, $t4  		# If not upper case or lower
+ 
+concatenat :
+ 		sb $a0, NON_alphabet($t1)
+ 		add $t0,$t0,1 			# Points to the next character
+ 		add $t1,$t1,1 			# length is incremented
+ j Decrypt
+
+
+ 
+#For the use of Decryption
+Decryptislower:
+ 		bgt $t4,122,Decrypt_NotlowerOrupper 	# if the character is not upper or lower case
+		blt $t4,97,Decrypt_IsupperORanyother 	# if the character is not lower case
+ 		li $v0,1    				# store value 1 in register V0 if the decrypt character is lower case
+ jr $ra
+ 
+Decrypt_NotlowerOrupper:
+ 		li $v0,2   				# store calue 2 in register V0 if the decrypt character is not upper or lower case
+ j Decrypt2
+ 
+Decrypt_IsupperORanyother:
+ 		blt $t4,65,Decrypt_NotlowerOrupper 		# if the character is not upper or lower case
+ 		bgt $t4,91,Decrypt_NotlowerOrupper 		# if the character id not upper or lower case
+ 		li $v0,0   				# store value 0 in the v0 register if the character is upper case
+ j Decrypt2
+ 
+ 
+DecryptLower:
+ 		li $t5,26   				# Decrypt lower case characters
+ 		sub $t4,$t4,97
+		sub $t4, $t4, $t3
+ 		sub $t6,$zero,$t4
+ 		li $t7,1
+ 
+ ModFornegative:
+ 		mul $s0,$t5,$t7
+ 		bgt $s0,$t6,ModCal
+ 		addi $t7,$t7,1
+ j ModFornegative
+ 
+ ModCal:
+ 		add $t4,$s0,$t4
+ 		div $t4,$t5
+ 		mfhi $a0
+ 		addi $a0,$a0,97
+ j concatenat
+ 
+DecryptUpper:
+ 		li $t5,26   				# Decrypt Upper caes characters
+ 		sub $t4,$t4,65
+ 		sub $t4, $t4, $t3
+ 		sub $t6,$zero,$t4
+ 		li $t7,1
+ 
+ ModFornegativeUpper:
+ 		mul $s0,$t5,$t7
+ 		bgt $s0,$t6,ModCalUpper
+ 		addi $t7,$t7,1
+ j ModFornegativeUpper
+ 
+ ModCalUpper:
+ 		add $t4,$s0,$t4
+ 		div $t4,$t5
+ 		mfhi $a0
+ 		addi $a0,$a0,65
+ j concatenat
+
+
+  
+
+  
+read_input_file:
+
+#print ask User to enter vaild Path
+  	li  $v0, 4          # Service code 4 for printing a string
+  	la  $a0, loc_infile_txt  # Load address of error message string
+  syscall             
+  # Read a string from the user
+	li  $v0, 8          # Service code 8 for reading a string
+	la  $a0, buffer1     # Load address of buffer into $a0
+	li  $a1, 100        # Load maximum number of characters to read into $a1
+  syscall             # Read string and store result in memory at address in $a0
+
+# this loop to remove \n at end of dir user enterd
+loop1:
+    lbu $a3, buffer1($a2)  
+    addiu $a2, $a2, 1
+    bnez $a3, loop1       # Search the NULL char code
+    beq $a1, $a2, openFile   # Check whether the buffer was fully loaded
+    subiu $a2, $a2, 2    # Otherwise 'remove' the last character
+    sb $0, buffer1($a2)     # and put a NULL instead
+    
+    
+    
+openFile:
+#Open file for for reading purposes
+	li $v0, 13          #syscall 13 - open file
+	la $a0, buffer1        #passing in file name
+	li $a1, 0               #set to read mode
+	li $a2, 0               #mode is ignored
+  syscall
+	bltz $v0, openError     #if $v0 is less than 0, there is an error found
+	move $s0, $v0           #else save the file descriptor
+#Read input from file
+	li $v0, 14          #syscall 14 - read filea
+	move $a0, $s0           #sets $a0 to file descriptor
+	la $a1, buffer0          #stores read info into buffer
+	li $a2, 1024            #hardcoded size of buffer
+  syscall             
+	bltz $v0, readError     #if error it will go to read error
+
+
+#Close the file 
+	li   $v0, 16       # system call for close file
+	move $a0, $s0      # file descriptor to close
+  syscall            # close file
+  
+  jr $ra 
+  
+# here is remove non alphabet characters function its ask user to choose between replace it with space or remove it with shift left  		
+remove:	
+	li $v0, 4
+  	la $a0, opprompt1
+  syscall
+
+# Read a character from the user
+	li $v0, 12 # code for reading a character
+  syscall
+
+# Check if the character is one of the specific characters
+  	beq $v0, 'S', d   # Branch to isE if $v0 is equal to 'E'
+  	beq $v0, 's', d   # Branch to isE if $v0 is equal to 'e'
+ 	beq $v0, 'D', s   # Branch to isD if $v0 is equal to 'D'
+ 	beq $v0, 'd', s   # Branch to isD if $v0 is equal to 'd'
+
+# Print an error message if the character is not one of the specific characters
+  	li  $v0, 4          # Service code 4 for printing a string
+  	la  $a0, error_msg  # Load address of error message string
+  syscall             # Print the error message
+
+# Go back to the beginning of the loop
+j remove
+	
+s:
+	la	$s0, buffer0	
+	la	$s1, NON_alphabet
+		li	$t0, 0
+			li	$t1, 0
+remove_NON_char_s:
+	lb	$t1, 0($s0)		#checking the character at this counter
+	beqz	$t1, find_max_length_word	#check to make sure it is not at the end of the char array
+	
+	
+
+	#Checking  char 
+	li	$t0, 10 
+	beq 	$t1, $t0, char
+	
+	li	$t0, 32 
+	beq 	$t1, $t0, char
+	
+	li	$t0, 65
+	blt 	$t1, $t0, else	
+		
+	li	$t0, 91
+	blt	$t1,$t0, char  
+	
+	li	$t0, 97
+	blt	$t1,$t0, else
+	
+	li	$t0, 123
+	blt	$t1,$t0, char
+	
+	li	$t0,255
+	blt	$t1,$t0, else
+	
+	else:
+	
+	addi	$s0, $s0, 1	#skip to next char
+	j	remove_NON_char_s
+	
+char:
+	sb	$t1, ($s1)	#copy into the return space
+	addi	$s0, $s0, 1	#skip to next char of input array
+	addi	$s1, $s1, 1	#jump the next place in space 
+	j	remove_NON_char_s
+	
+ d:
+ 	la	$s0, buffer0	
+	la	$s1, NON_alphabet
+	li	$t0, 0
+	li	$t1, 0
+remove_NON_char_d:
+	lb	$t1, 0($s0)		#checking the character at this counter
+	beqz	$t1, find_max_length_word	#check to make sure it is not at the end of the char array
+	
+	
+	#Checking  char 
+	li	$t0, 10 
+	beq 	$t1, $t0, char1
+	
+	li	$t0, 65
+	blt 	$t1, $t0, else1	# char > 64 "A"
+		
+	li	$t0, 91
+	blt	$t1,$t0, char1  # char < 91 "Z"
+	
+	li	$t0, 97
+	blt	$t1,$t0, else1
+	
+	li	$t0, 123
+	blt	$t1,$t0, char1
+	
+	li	$t0,255
+	blt	$t1,$t0, else1
+	
+	
+else1:
+	li      $t1, 32             # Load the character ' ' into $t1
+	sb	$t1, ($s1)	#copy into the return space
+	addi	$s0, $s0, 1	#skip to next char of input array
+	addi	$s1, $s1, 1	#jump the next place in space 
+	j	remove_NON_char_d
+	
+char1:
+	sb	$t1, ($s1)	#copy into the return space
+	addi	$s0, $s0, 1	#skip to next char of input array
+	addi	$s1, $s1, 1	#jump the next place in space 
+	j	remove_NON_char_d
+	
+
+	
+# here is function to find the max length of word for shift value
+
+find_max_length_word:
+
+# Initialize variables
+    	la      $a0, NON_alphabet          # Load address of string into $a0
+    	li      $t0, 0               # Initialize counter to 0
+   	li      $t2, 0               # Initialize length of longestWord to 0
+
+# Loop through the string
+findLongestWord:
+    	lb      $t3, ($a0)           # Load the current character into $t3
+    	beq     $t3, $zero, updateWord1     # If the character is null, exit loop
+    	addi    $a0, $a0, 1          # Move to the next character
+   	beq     $t3, ' ', updateWord # If the character is a space, update the longest word
+        beq     $t3, 10, updateWord # If the character is a space, update the longest word
+    	addi    $t0, $t0, 1          # Increment the counter
+
+j findLongestWord      # Continue the loop
+
+
+updateWord1:
+    	blt $t0, $t2, done # If the current word is not the longest, skip update
+       move $t2, $t0             # Update the length of the longest word
+j done
+       
+       
+       
+updateWord:
+    	blt $t0, $t2, skipUpdate # If the current word is not the longest, skip update
+       move $t2, $t0             # Update the length of the longest word
+
+    	
+    	
+skipUpdate:
+    	li $t0, 0               # Reset the counter to 0
+j findLongestWord      # Continue the loop
+
+done:
+# At this point, the longest word is stored in the variable longestWord
+# Print the length of the longest word
+   	sw $t2, maxlength
+   	li $t1, 26 
+   	rem $t2 , $t2 , $t1
+   	sw $t2 , maxlength
+   	
+   	
+   	la $a0, print_max_length
+    	li $v0, 4
+  syscall
+   
+ 	li $v0, 1
+    	lw $a0, maxlength
+    syscall
+    
+        la $a0, spacechar
+    	li $v0, 4
+  syscall
+
+    jr $ra         
+    
+openfile_to_write:        
+
+#print ask User to enter vaild Path
+  	li  $v0, 4          # Service code 4 for printing a string
+  	la  $a0, loc_outfile_txt  # Load address of error message string
+  syscall             
+  # Read a string from the user
+	li  $v0, 8          # Service code 8 for reading a string
+	la  $a0, buffer3     # Load address of buffer into $a0
+	li  $a1, 100        # Load maximum number of characters to read into $a1
+  syscall             # Read string and store result in memory at address in $a0
+  li $a1, 0
+    li $a2, 0
+      li $a3, 0
+      
+# this loop to remove \n at the end of string of path
+  loop3:
+    	lbu $a3, buffer3($a2)  
+    	addiu $a2, $a2, 1
+    	bnez $a3, loop3       # Search the NULL char code
+    	beq $a1, $a2, write   # Check whether the buffer was fully loaded
+    	subiu $a2, $a2, 2    # Otherwise 'remove' the last character
+    	sb $0, buffer3($a2)     # and put a NULL instead
+    
+    
+write:
+               # Open (for writing) a file that does not exist
+  	li   $v0, 13       # system call for open file
+  	la   $a0, buffer3     # output file name
+  	li   $a1, 1        # Open for writing (flags are 0: read, 1: write)
+  	li   $a2, 0        # mode is ignored
+  syscall            # open a file (file descriptor returned in $v0)
+  	move $s6, $v0      # save the file descriptor 
+  ###############################################################
+  # Write to file just opened
+  	li   $v0, 15       # system call for write to file
+  	move $a0, $s6      # file descriptor 
+  	la   $a1, NON_alphabet    # address of buffer from which to write
+  	li   $a2, 44       # hardcoded buffer length
+  syscall            # write to file
+  ###############################################################
+  # Close the file 
+  	li   $v0, 16       # system call for close file
+  	move $a0, $s6      # file descriptor to close
+  syscall            # close file
+  ###############################################################     
+
+j endProgram     
+#here is Error msg for user 
+removeError:
+	la $a0, removErrorMsg
+	li $v0, 4
+  syscall
+j Encryption
+
+openError:
+	la $a0, openErrorMsg
+	li $v0, 4
+  syscall
+j Encryption
+
+readError:
+	la $a0, readErrorMsg
+	li $v0, 4
+  syscall
+j Encryption
+
+
+
+
+
+endProgram:
+	li $v0, 10
+  syscall
